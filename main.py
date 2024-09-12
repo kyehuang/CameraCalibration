@@ -5,6 +5,7 @@ import numpy as np
 import argparse
 import cv2
 import os, collections
+from utils.aruco_3d_points import aruco_3d_points_dict 
 
 class Calibration:
     def __init__(self, args):
@@ -15,6 +16,7 @@ class Calibration:
         self.threshold = args["threshold"]
         self.aruco_corners = self.get_aruco_corners(args["length"])
         self.args = args
+        self.aruco_3d_points_dict = aruco_3d_points_dict
         
     def stereo_calibrate(self):
         path_prefix = os.path.join(self.calibrate_folder, "images")
@@ -51,6 +53,8 @@ class Calibration:
         arucoParams = cv2.aruco.DetectorParameters_create()
         
         (corners, ids, rejected) = cv2.aruco.detectMarkers(binary_image, arucoDict, parameters=arucoParams)
+        all_corners = np.empty((0, 2), dtype=float)
+        aruco_corners = np.empty((0, 3))
 
         # Verify that at least one ArUco marker was detected
         if len(corners) > 0:
@@ -71,20 +75,35 @@ class Calibration:
                 # corner['topRight'] = np.array([420, 272])
                 # corner['bottomRight'] = np.array([450, 315])
                 # corner['bottomLeft'] = np.array([230, 311])
-                
-                self.draw_aruco_bbox(ori_img, corner)
-                self.draw_aruco_id(ori_img, markerID, corner)
-                self.save_aruco_image(camera, markerID, ori_img)
-                all_corners = markerCorner.reshape((4, 2))
-                # all_corners[0] = corner['topLeft']
-                # all_corners[1] = corner['topRight']
-                # all_corners[2] = corner['bottomRight']
-                # all_corners[3] = corner['bottomLeft']
-                
+                print("markerID: ", markerID)
+                if markerID in self.aruco_3d_points_dict:
+                    self.draw_aruco_bbox(ori_img, corner)
+                    self.draw_aruco_id(ori_img, markerID, corner)
+                    self.save_aruco_image(camera, markerID, ori_img)
+                    # all_corners = markerCorner.reshape((4, 2))
+                    # print(all_corners)
+                    # print(markerCorner)
+                    markerCorner = np.squeeze(markerCorner)
+                    # print(markerCorner)
+                    all_corners = np.append(all_corners, markerCorner, axis=0)    
+                    # print(all_corners)
+                    # print(type(all_corners))
+                    # print("=====")
+                    # all_corners[0] = corner['topLeft']
+                    # all_corners[1] = corner['topRight']
+                    # all_corners[2] = corner['bottomRight']
+                    # all_corners[3] = corner['bottomLeft']
+                    # print( self.aruco_3d_points_dict[markerID])
+                    aruco_corners = np.append(aruco_corners, self.aruco_3d_points_dict[markerID], axis=0)
+            # print(self.aruco_corners)
+            # print("test aruco_corners msg")
+            # print(aruco_corners)
             # SolvePnP
+            print("all_corners: ", all_corners)
+            print("aruco_corners: ", aruco_corners)
             camera.distortion = np.zeros_like(camera.distortion)
             success, vector_rotation, vector_translation = cv2.solvePnP(
-                                                                self.aruco_corners, 
+                                                                aruco_corners, 
                                                                 all_corners, 
                                                                 camera.camera_matrix, 
                                                                 camera.distortion)
