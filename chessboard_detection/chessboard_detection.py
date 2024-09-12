@@ -6,11 +6,23 @@ import collections
 
 class Chessboard_detection:
     def __init__(self, row, col, board_size):
+        '''
+        row: Number of rows in the checkerboard
+        col: Number of columns in the checkerboard
+        board_size: Length of the checkerboard square in meters
+        '''
         self.row = row
         self.col = col
         self.board_size = board_size
         
     def images_list(self, images_folder):
+        '''
+        images_folder: Folder containing the videos
+
+        Returns a list of images
+
+        If the images are in a video format, the function will extract frames from the video
+        '''
         images_prefix = f"camera_calibration_data/{images_folder}"
         images = []
 
@@ -27,6 +39,11 @@ class Chessboard_detection:
         return images
 
     def extract_frames_from_video(self, video_path):
+        '''
+        video_path: Path to the video
+
+        Returns a list of frames
+        '''
         frames = []
         cap = cv2.VideoCapture(video_path)
         while cap.isOpened():
@@ -46,6 +63,11 @@ class Chessboard_detection:
         return frames
     
     def numpy_array_to_list(self, obj):
+        '''
+        obj: Numpy array
+
+        Returns a list
+        '''
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, list):
@@ -55,6 +77,11 @@ class Chessboard_detection:
         return obj
         
     def calibrate(self, images_folder):
+        '''
+        images_folder: Folder containing the camera matrix and distortion coefficients
+
+        This function will calibrate the camera and save the camera matrix and distortion coefficients
+        '''
         save_path = f"output/{images_folder}"
 
         images = self.images_list(images_folder)
@@ -95,8 +122,6 @@ class Chessboard_detection:
                 cv2.imshow('img', frame)
                 k = cv2.waitKey(0)
     
-                # objpoints.append(objp)
-                # imgpoints.append(corners)
         
         if (len(img_p["LR"]) > len(img_p["RL"])):
             imgpoints = img_p["LR"]
