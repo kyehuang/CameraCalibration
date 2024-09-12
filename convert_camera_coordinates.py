@@ -47,10 +47,9 @@ class convert_camera_coordinates:
         return image_points[:2]
     
     def screen_point_to_world_point(self, scream_points, depth):
-        world_points = np.linalg.inv(self.rotation_matrix) @ np.linalg.inv(self.camera_matrix) @ scream_points.T * depth
-        world_points = world_points.T           
-        return self.unity_to_reality_coordinates(world_points) + self.camera_transfrom
-        return world_points + self.camera_transfrom
+        return np.linalg.inv(self.rotation_matrix) @ (np.linalg.inv(self.camera_matrix) @ scream_points.T * depth - self.camera_transfrom.T)
+        
+
     
     def check(self):
         _3d_path_points_list = [[0,0,0], [0,1,0], [0,2,0], [0,3,0], [0,4,0], [0,5,0]]
@@ -59,27 +58,26 @@ class convert_camera_coordinates:
             _2d_points = _2d_points / _2d_points[2]
             print(_2d_points)
 
+    def check_position(self, img_path, points):
+        ori_img = cv2.imread(img_path)
+        _2d_points = self.camera_matrix @ self.extrinsic_matrix[:3, :] @ np.append(points, 1)
+        _2d_points = _2d_points / _2d_points[2]
+        cv2.circle(ori_img, (int(_2d_points[0]), int(_2d_points[1])), 3, (0, 255, 0), -1)                                
+        cv2.imshow(f"img", ori_img)
+        cv2.waitKey(0)
+    
+    def check_line(self, img_path, start, end):
+        ori_img = cv2.imread(img_path)
+        start_2d_points = self.camera_matrix @ self.extrinsic_matrix[:3, :] @ np.append(start, 1)
+        start_2d_points = start_2d_points / start_2d_points[2]
+        end_2d_points = self.camera_matrix @ self.extrinsic_matrix[:3, :] @ np.append(end, 1)
+        end_2d_points = end_2d_points / end_2d_points[2]
+        cv2.line(ori_img, (int(start_2d_points[0]), int(start_2d_points[1])), (int(end_2d_points[0]), int(end_2d_points[1])), (0, 255, 0), 2)                                
+        cv2.imshow(f"img", ori_img)
+        cv2.waitKey(0)
 
 
 if __name__ == "__main__":
-    # with open("output/unity/camera_2.pkl", "rb") as infile:
-    #     camera = pickle.load(infile)
-    #     camera_matrix = camera["camera_matrix"]
-    #     extrinsic_matrix = camera["extrinsic_matrix"]
-    #     rotation_matrix = camera["rotation_matrix"]
-
-    # camera_transfrom = np.array( [[9, 4, 0]] )
-    # convert_camera = convert_camera_coordinates(camera_matrix, extrinsic_matrix, rotation_matrix, camera_transfrom)
-    # scream_points = np.array(
-    #     [[249.73, 291.05, 1]]
-    # )
-    # depth = 8.9
-    # # world_points = np.array(
-    # #     [[1, 5, 1, 1]]
-    # # )
-    
-    # print(convert_camera.screen_point_to_world_point(scream_points, depth))
-
     with open("output/unity/camera_1.pkl", "rb") as infile:
         camera = pickle.load(infile)
         camera_matrix = camera["camera_matrix"]
@@ -89,13 +87,19 @@ if __name__ == "__main__":
     camera_transfrom = np.array( [[0, 4, 9]] )
     convert_camera = convert_camera_coordinates(camera_matrix, extrinsic_matrix, rotation_matrix, camera_transfrom)
     scream_points = np.array(
-        [[330.87, 439.31, 1]]
+        [[387.45, 326.39, 1]]
     )
-    depth = 8.94
+    depth = 8.57
     # world_points = np.array(
     #     [[1, 5, 1, 1]]
     # )
     
     print(convert_camera.screen_point_to_world_point(scream_points, depth))
+    # print(convert_camera.check())
+    print(convert_camera.check_line('/home/chenfu/workspaces/CameraCalibration/camera_data/unity/images/camera_1.png', [6, 0, 0], [-6, 0, 0]))
+    print(convert_camera.check_line('/home/chenfu/workspaces/CameraCalibration/camera_data/unity/images/camera_1.png', [6, -1, 0], [-6, -1, 0]))
+    print(convert_camera.check_line('/home/chenfu/workspaces/CameraCalibration/camera_data/unity/images/camera_1.png', [6, -2, 0], [-6, -2, 0]))
+    print(convert_camera.check_position('/home/chenfu/workspaces/CameraCalibration/camera_data/unity/images/camera_1.png', [-1.53, -2.34, 0.40]))
+    print(convert_camera.check_position('/home/chenfu/workspaces/CameraCalibration/camera_data/unity/images/camera_1.png', [-1.47, -2.16, 0.48]))
     
  
