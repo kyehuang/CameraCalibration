@@ -9,16 +9,29 @@ from utils.aruco_3d_points import aruco_3d_points_dict
 
 class Calibration:
     def __init__(self, args):
+        '''
+        args: Dictionary containing the following keys:
+            image: Name of the folder containing the images
+            type: Type of the ArUCo tag to detect
+            length: Side length of the ArUCo tag
+            threshold: Black and white threshold of the binary image
+
+        aruco_3d_points_dict: Dictionary containing the 3D points of the ArUCo tags
+        '''
         self.calibrate_folder = os.path.join("camera_data", args["image"])
         self.save_prefix = os.path.join("output", args["image"])
         self.camera = collections.defaultdict(Camera_info)
         self.ARUCO_DICT = get_aruco_dict()
         self.threshold = args["threshold"]
-        self.aruco_corners = self.get_aruco_corners(args["length"])
         self.args = args
         self.aruco_3d_points_dict = aruco_3d_points_dict
         
     def stereo_calibrate(self):
+        '''
+        This function will calibrate the stereo camera and save the camera matrix, distortion coefficients, rotation matrix, and translation vector
+
+        Returns a dictionary containing the camera matrix, distortion coefficients, rotation matrix, and translation vector
+        '''
         path_prefix = os.path.join(self.calibrate_folder, "images")
         for camera_name in os.listdir(path_prefix):
             Id = camera_name.split('.')[0]
@@ -41,7 +54,13 @@ class Calibration:
                 write_json_file(self.camera[Id], f"{self.save_prefix}/{Id}.json")
         
     def aruco_detetion(self, camera : Camera_info):
-        # print(f"loading image: {camera.img_path}...")
+        '''
+        camera: Camera_info object
+
+        This function will detect the ArUCo tag in the image and return the rotation vector, translation vector, and extrinsic matrix
+
+        Returns the rotation vector, translation vector, and extrinsic matrix
+        '''
         ori_img = cv2.imread(camera.img_path)
 
         gray_image = cv2.cvtColor(ori_img, cv2.COLOR_BGR2GRAY)
@@ -53,6 +72,7 @@ class Calibration:
         arucoParams = cv2.aruco.DetectorParameters_create()
         
         (corners, ids, rejected) = cv2.aruco.detectMarkers(binary_image, arucoDict, parameters=arucoParams)
+        # Initialize the lists to store the ArUco corners and 3D points
         all_corners = np.empty((0, 2), dtype=float)
         aruco_corners = np.empty((0, 3))
 
@@ -64,43 +84,19 @@ class Calibration:
             # Loop over the detected ArUco corners
             for (markerCorner, markerID) in zip(corners, ids):
                 corner = self.set_marker_info(markerCorner)
-                for key, val in corner.items():
-                    print(f"{key}: {val}")
-                # cv2.namedWindow("Image Viewer")
-                # cv2.setMouseCallback("Image Viewer", self.mouse_event_handler)
-                # cv2.imshow("Image Viewer", ori_img)
-                # cv2.waitKey(0)
 
-                # corner['topLeft'] = np.array([249, 271])
-                # corner['topRight'] = np.array([420, 272])
-                # corner['bottomRight'] = np.array([450, 315])
-                # corner['bottomLeft'] = np.array([230, 311])
-                print("markerID: ", markerID)
                 if markerID in self.aruco_3d_points_dict:
+                    # Draw the bounding box of the ArUco detection
                     self.draw_aruco_bbox(ori_img, corner)
                     self.draw_aruco_id(ori_img, markerID, corner)
                     self.save_aruco_image(camera, markerID, ori_img)
-                    # all_corners = markerCorner.reshape((4, 2))
-                    # print(all_corners)
-                    # print(markerCorner)
+
+                    # Append the corner and 3D points to the lists
                     markerCorner = np.squeeze(markerCorner)
-                    # print(markerCorner)
                     all_corners = np.append(all_corners, markerCorner, axis=0)    
-                    # print(all_corners)
-                    # print(type(all_corners))
-                    # print("=====")
-                    # all_corners[0] = corner['topLeft']
-                    # all_corners[1] = corner['topRight']
-                    # all_corners[2] = corner['bottomRight']
-                    # all_corners[3] = corner['bottomLeft']
-                    # print( self.aruco_3d_points_dict[markerID])
                     aruco_corners = np.append(aruco_corners, self.aruco_3d_points_dict[markerID], axis=0)
-            # print(self.aruco_corners)
-            # print("test aruco_corners msg")
-            # print(aruco_corners)
+
             # SolvePnP
-            print("all_corners: ", all_corners)
-            print("aruco_corners: ", aruco_corners)
             camera.distortion = np.zeros_like(camera.distortion)
             success, vector_rotation, vector_translation = cv2.solvePnP(
                                                                 aruco_corners, 
@@ -133,18 +129,41 @@ class Calibration:
         }
 
     def draw_aruco_bbox(self, ori_image, corner):
-        
+        '''
+        ori_image: Original image
+        corner: Dictionary containing the corner points of the ArUco tag
+
+        This function will draw the bounding box of the ArUco tag
+
+        Returns the image with the bounding box drawn
+        '''
         cv2.line(ori_image, corner['topLeft'].astype(int), corner['topRight'].astype(int), (0, 255, 0), 2)
         cv2.line(ori_image, corner['topRight'].astype(int), corner['bottomRight'].astype(int), (0, 255, 0), 2)
         cv2.line(ori_image, corner['bottomRight'].astype(int), corner['bottomLeft'].astype(int), (0, 255, 0), 2)
         cv2.line(ori_image, corner['bottomLeft'].astype(int), corner['topLeft'].astype(int), (0, 255, 0), 2)
          
     def compute_marker_center(self, corner):
+        '''
+        corner: Dictionary containing the corner points of the ArUco tag
+
+        This function will compute the center of the ArUco tag
+
+        Returns the center of the ArUco tag
+        '''
         cX = int((corner['topLeft'][0] + corner['bottomRight'][0]) / 2.0)
         cY = int((corner['topLeft'][1] + corner['bottomRight'][1]) / 2.0)
         return cX, cY
     
     def draw_aruco_id(self, ori_image, markerID, corner):
+        '''
+        ori_image: Original image
+        markerID: ID of the ArUco tag
+        corner: Dictionary containing the corner points of the ArUco tag
+
+        This function will draw the ID of the ArUco tag
+
+        Returns the image with the ID drawn
+        '''
         (cX, cY) = self.compute_marker_center(corner)
         # cv2.circle(ori_image, (cX, cY), 4, (0, 0, 255), -1)
         # cv2.putText(ori_image, f'({cX}, {cY})', (cX, cY - 15), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -159,33 +178,43 @@ class Calibration:
             cv2.putText(ori_image, f'({cX}, {cY})', (int(corner[0]), int(corner[1]) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
     
     def save_aruco_image(self, camera : Camera_info, markerID, ori_image):
+        '''
+        camera: Camera_info object
+
+        This function will save the image with the ArUco tag drawn
+
+        Returns the image with the ArUco tag drawn
+        '''
         save_path = f"{self.save_prefix}/images/"
         check_path(save_path)
         save_path = os.path.join(save_path, f"{camera.img_name}_{markerID}.png")
         cv2.imwrite(save_path, ori_image)
-    
-    def get_aruco_corners(self, side_length, offset=[0, 0, 0]):
-        corners = np.zeros((4, 3))
-        half = side_length / 2
 
-        # Define the corners based on the side_length and offset
-        # left-top
-        corners[0] = [offset[0] - half, offset[1], offset[2] + half]
-        # right-top
-        corners[1] = [offset[0] + half, offset[1], offset[2] + half]
-        # right-bottom
-        corners[2] = [offset[0] + half, offset[1], offset[2] - half]
-        # left-bottom
-        corners[3] = [offset[0] - half, offset[1], offset[2] - half]
 
-        return corners     
-    
     def mouse_event_handler(self, event, x, y, flags, param):
+        '''
+        event: Mouse event
+        x: X-coordinate of the mouse
+        y: Y-coordinate of the mouse
+        flags: Flags
+
+        This function will print the (x, y) coordinates where the mouse is moving
+        '''
         if event == cv2.EVENT_MOUSEMOVE:
             # Print the (x, y) coordinates where the mouse is moving
             print(f"Mouse Position: (X: {x}, Y: {y})")
             
     def check(self, img, extrinsic, camera_matrix):
+        '''
+        img: Image
+        extrinsic: Extrinsic matrix
+        camera_matrix: Camera matrix
+
+        This function will check the 3D points of the ArUCo tag
+        Rad line: x-axis
+        Green line: y-axis
+        Blue line: z-axis
+        '''
         z_3d_path_points_list = [[0, 0, 0], [0, 0, 0.5], [0, 0, 1], [0, 0, 1.5], [0, 0, 2]]
         y_3d_path_points_list = [[0, 0, 0], [0, 0.5, 0], [0, 1, 0], [0, 1.5, 0], [0, 2, 0]]
         x_3d_path_points_list = [[0, 0, 0], [0.5, 0, 0], [1, 0, 0], [1.5, 0, 0], [2, 0, 0]]
